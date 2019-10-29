@@ -12,10 +12,11 @@ algn_file = input("Input your alignment file: ")
 sequences = SeqIO.parse(algn_file, "fasta")
 sequences_list = list(sequences)
 read_length = len(sequences_list[0])
+t = Tree(nwk_file)
 node = []
 for seq in sequences_list:
     node.append(seq.id)
-nodes = [node]
+nodes = [(node,t)]
 
 #prunes newick tree for a subtree with the given species IDs
 def prune_tree(node):
@@ -42,16 +43,16 @@ def ecotype_test(nodes):
     ecotypes = []
     for node in nodes:
         #any node with 2 or less species is automatically binned as an ecotype
-        if len(node) <= 2:
+        if len(node[0]) <= 2:
             ecotypes.append(node)
         else:
-            num_reads = len(node)
-            true_freq = frequencies_fasta(find_in_fasta(node))
+            num_reads = len(node[0])
+            true_freq = frequencies_fasta(find_in_fasta(node[0]))
             true_ent = entropy(true_freq, num_reads)
             sim_results = run_sim(node, num_reads)
             #if the actual entropy exceeds the bottom 5% of the simulated entropies, the node will be binned as an ecotype
             #otherwise, the entropy will be tagged for further splitting
-            if true_ent < sim_results[0]:
+            if true_ent < sim_results[0] or true_ent > sim_results[-1]:
                 nodes_for_splitting.append(node)
             else:
                 count = 0
@@ -76,10 +77,11 @@ def find_in_fasta(node):
 #produces the results of 20 simulations on one node
 def run_sim(node, num_reads):
     sim_results = []
+    num_mutations = tree_size(node[1])
     for i in range(0,20):
-        print("Running Simulation " + str(i) + "/20")
+        print("Running Simulation " + str(i+1) + "/20")
         start_matrix = fill_sim(num_reads)
-        switched_nodes = switcher(start_matrix, node, num_reads)
+        switched_nodes = switcher(start_matrix, node, num_reads, num_mutations)
         freqs = frequencies(switched_nodes)
         ent = entropy(freqs, num_reads)
         sim_results.append(ent)
@@ -87,32 +89,34 @@ def run_sim(node, num_reads):
     return sorted_sim_results
 
 #calculates how many times the same sequence occurs in one simulated node
+
 def frequencies(node):
     print("Gathering Frequencies")
-    existing_reads = []
     frequencies = []
+    existing_reads = []
+    new_reads = []
     for read in node:
-        freq = 0
+        x = "".join(read)
+        new_reads.append(x)
+    for read in new_reads:
         if read not in existing_reads:
-            for read2 in node:
-                if read2 == read:
-                    freq += 1
-            existing_reads.append(read)
+            freq = new_reads.count(read)
             frequencies.append((read, freq),)
+            existing_reads.append(read)
     return frequencies
 
 def frequencies_fasta(node):
     print("Gathering Frequencies")
     existing_reads = []
     frequencies = []
+    new_reads = []
     for read in node:
-        freq = 0
-        if read.seq not in existing_reads:
-            for read2 in node:
-                if read2.seq == read.seq:
-                    freq += 1
-            existing_reads.append(read.seq)
+        new_reads.append(read.seq)
+    for read in new_reads:
+        if read not in existing_reads:
+            freq = new_reads.count(read)
             frequencies.append((read, freq),)
+            existing_reads.append(read)
     sorted_freqs = sorted(frequencies, key=operator.itemgetter(1), reverse=True)
     return sorted_freqs
 
@@ -122,20 +126,20 @@ def fill_sim(num_reads):
     for i in range(0, num_reads):
         inner_nodes = []
         for j in range(0, read_length):
-            inner_nodes.append(True)
+            inner_nodes.append("0")
         simulation_nodes.append(inner_nodes)
     return simulation_nodes
 
 #uses 2 random number generators to select the sequences and nucleotide sites which will be mutated in a simulation
-def switcher(sim_nodes, node, num_reads):
+def switcher(sim_nodes, node, num_reads, num_mutations):
     print("Mutating Sequences")
-    num_mutations = tree_size(prune_tree(node))
+    print(num_mutations)
     x = random.sample(range(0, num_reads*num_mutations), num_mutations)
     y = random.sample(range(0, read_length*num_mutations), num_mutations)
     for i in range(0, num_mutations):
-        sim_nodes[x[i]%num_reads][y[i]%read_length] = False if sim_nodes[x[i]%num_reads][y[i]%read_length] == True else True
-        if i%100==0 or i == num_mutations-1:
-            print("Current Number of Mutations: " + str(i))
+        sim_nodes[x[i]%num_reads][y[i]%read_length] = "1" if sim_nodes[x[i]%num_reads][y[i]%read_length] == "0" else "0"
+        if i%99==0 or i == num_mutations-1:
+            print("Current Number of Mutations: " + str(i+1))
 
     return sim_nodes
 
@@ -162,7 +166,7 @@ def splitter(nodes):
         cleared = []
         add_to_split = []
         while i < k:
-            t = prune_tree(splitting[i])
+            t = splitting[i][1]
             if len(t.children) > 1:
                 a = t.children
                 #if t only has 2 immediate desendants, we split the tree at the root node into two new nodes
@@ -180,9 +184,8 @@ def splitter(nodes):
                             if clade.name:
                                 right2.append(clade.name)
                         cleared.append(splitting[i])
-                        add_to_split.append(left2)
-                        add_to_split.append(right2)
-                #otherwise, the descendants of t must be split by the "most mutated" vs everyone else
+                        add_to_split.append((left2,left),)
+                        add_to_split.append((right2,right),)
                 else:
                     children = []
                     #finds all the immediate descendants of t
@@ -191,7 +194,7 @@ def splitter(nodes):
                     branch_lengths = []
                     #measures and sorts the descendants by their amount of mutation
                     for child in children:
-                        child_size = mini_tree_size(child)
+                        child_size = mini_tree_size(child)/len(child)
                         branch_lengths.append((child, child_size),)
                     sorted_child_sizes = sorted(branch_lengths, key=operator.itemgetter(1), reverse=True)
                     new_out = sorted_child_sizes[0][0]
@@ -203,15 +206,17 @@ def splitter(nodes):
                         for clade in new_out.traverse():
                             if clade.name:
                                 new_node.append(clade.name)
-                        add_to_split.append(new_node)
+                        add_to_split.append((new_node, new_out),)
                         for out in new_node:
-                            splitting[i].remove(out)
-                        add_to_split.append(splitting[i])
+                            splitting[i][0].remove(out)
+                        new_tree = prune_tree(splitting[i][0])
+                        add_to_split.append((splitting[i][0], new_tree),)
                         cleared.append(splitting[i])
                     else:
-                        add_to_split.append([new_out.name])
-                        splitting[i].remove(new_out.name)
-                        add_to_split.append(splitting[i])
+                        add_to_split.append(([new_out.name], new_out),)
+                        splitting[i][0].remove(new_out.name)
+                        new_tree = prune_tree(splitting[i][0])
+                        add_to_split.append((splitting[i][0], new_tree),)
                         cleared.append(splitting[i])
             i += 1
         for read in cleared:
@@ -232,8 +237,12 @@ print(t)
 def to_log(ecotypes):
     new_ecotypes = open("new_ecotypes.txt", "w")
     count = 1
+    ecotype_list = []
 
     for ecotype in ecotypes:
+        ecotype_list.append(ecotype[0])
+
+    for ecotype in ecotype_list:
         new_ecotypes.write("Ecotype " + str(count) + ": " + "[" + ", ".join(x for x in ecotype) + "]" + "\n")
         count += 1
 
