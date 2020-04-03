@@ -99,12 +99,12 @@ if __name__ == '__main__':
 
     def entropy(frequencies, num_reads):
         #print("Calculating Entropy")
-        if len(frequencies) == 0:
+        if len(frequencies) == 1:
             return 0.0
         else:
             total = []
             for freq in frequencies:
-                ind = (frequencies[freq] * 1.0 / num_reads) + 0.0000000000000000001
+                ind = (frequencies[freq] * 1.0 / num_reads)
                 total.append(ind * math.log2(ind))
             return -(sum(total))
 
