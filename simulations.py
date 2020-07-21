@@ -10,7 +10,7 @@ import multiprocessing as mp
 
 
 def run_sim(node, tree, num_reads, read_length, num_mutations):
-    #print("Running Simulation")
+    print("Running Simulation")
     start_matrix = fill_sim(num_reads, read_length)
     switched_nodes = switcher(start_matrix, node, num_reads, num_mutations, read_length)
     freqs = frequencies(switched_nodes)
@@ -20,7 +20,7 @@ def run_sim(node, tree, num_reads, read_length, num_mutations):
 #calculates how many times the same sequence occurs in one simulated node
 
 def frequencies(node):
-    #print("Gathering Frequencies")
+    print("Gathering Frequencies")
     new_reads = []
     for read in node:
         x = "".join(read)
@@ -45,18 +45,21 @@ def fill_sim(num_reads, read_length):
 
 #uses 2 random number generators to select the sequences and nucleotide sites which will be mutated in a simulation
 def switcher(sim_nodes, node, num_reads, num_mutations, read_length):
-    #print("Mutating Sequences")
+    print("Mutating Sequences")
+    print(num_mutations)
     x = random.sample(range(0, num_reads*num_mutations), num_mutations)
     y = random.sample(range(0, read_length*num_mutations), num_mutations)
     for i in range(0, num_mutations):
         sim_nodes[x[i]%num_reads][y[i]%read_length] = "1" if sim_nodes[x[i]%num_reads][y[i]%read_length] == "0" else "0"
+        if i == num_mutations-1:
+            print("Current Number of Mutations: " + str(i))
 
     return sim_nodes
 
 #calculates the Shannon entropy of one simulated node
 def entropy(frequencies, num_reads):
-    #print("Calculating Entropy")
-    if len(frequencies) == 1:
+    print("Calculating Entropy")
+    if len(frequencies) == 0:
         return 0.0
     else:
         total = []
@@ -71,5 +74,5 @@ def check(node, tree, num_reads, read_length, num_mutations):
     results = [r.get() for r in result_objects]
     sorted_results = sorted(results)
     pool.close()
-    print("Simulation Results: ", sorted_results)
+    print(sorted_results)
     return sorted_results

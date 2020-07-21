@@ -7,7 +7,7 @@ import math
 import operator
 import numpy
 import simulations
-from simulations import check
+from simulations import check, entropy
 import multiprocessing as mp
 
 if __name__ == '__main__':
@@ -53,7 +53,7 @@ if __name__ == '__main__':
                 num_reads = len(node[0])
                 true_freq = frequencies_fasta(find_in_fasta(node[0]))
                 true_ent = entropy(true_freq, num_reads)
-                print("Actual Entropy: ", true_ent)
+                print(true_ent)
                 if true_ent == 0.0:
                     ecotypes.append(node)
                 else:
@@ -85,10 +85,11 @@ if __name__ == '__main__':
 
 
     def frequencies_fasta(node):
-        #print("Gathering Frequencies")
+        print("Gathering Frequencies")
         new_reads = []
         for read in node:
-            new_reads.append(read.seq)
+            x = "".join(read)
+            new_reads.append(x)
         freq_dict = {}
         for read in new_reads:
             if read not in freq_dict:
@@ -97,20 +98,9 @@ if __name__ == '__main__':
                 freq_dict[read] += 1
         return freq_dict
 
-    def entropy(frequencies, num_reads):
-        #print("Calculating Entropy")
-        if len(frequencies) == 1:
-            return 0.0
-        else:
-            total = []
-            for freq in frequencies:
-                ind = (frequencies[freq] * 1.0 / num_reads)
-                total.append(ind * math.log2(ind))
-            return -(sum(total))
-
     #splits each designated node into 2 sub-nodes for further testing
     def splitter(nodes):
-        #print("Splitting Ecotypes")
+        print("Splitting Ecotypes")
         ecotypes = nodes[0]
         splitting = nodes[1]
         while splitting != []:
@@ -140,6 +130,7 @@ if __name__ == '__main__':
                             add_to_split.append((left2,left),)
                             add_to_split.append((right2,right),)
                     else:
+                        print("in else")
                         children = []
                         #finds all the immediate descendants of t
                         for child in t.children:
@@ -151,6 +142,8 @@ if __name__ == '__main__':
                             branch_lengths.append((child, child_size),)
                         sorted_child_sizes = sorted(branch_lengths, key=operator.itemgetter(1), reverse=True)
                         new_out = sorted_child_sizes[0][0]
+                        for x in sorted_child_sizes:
+                            print(x[1])
                         #the most mutated branch is chosen to be a new node
                         #the rest of the branches are grouped into a second node
                         #both nodes are then sent back to the ecotype_test function and retested
@@ -184,7 +177,7 @@ if __name__ == '__main__':
 
     s = ecotype_test(nodes)
     t = splitter(s)
-    print("Ecotypes: ", t)
+    print(t)
 
     #parse new ecotypes into a text file
     def to_log(ecotypes):
