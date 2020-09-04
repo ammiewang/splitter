@@ -15,18 +15,14 @@ def ecotype_test(nodes):
         if len(node.seqs) <= 2:
             ecotypes.append(node)
         else:
-            #num_reads
-            #true_freq = node.frequencies_fasta(find_in_fasta(set(node.seqs)))
             node.find_in_fasta(sequences_list)
             true_freq = node.frequencies_fasta()
-            #print(sorted(true_freq.values()))
             true_ent = node.entropy(true_freq)
-            node.true_ent = true_ent
+            #node.true_ent = true_ent
             print('Actual Entropy', true_ent)
             if true_ent == 0.0:
                 ecotypes.append(node)
             else:
-                #num_mutations = tree_size(node.tree)
                 sim_results = node.check()
                 #node.sim_results = sim_results
                 #if the actual entropy exceeds the bottom 5% of the simulated entropies, the node will be binned as an ecotype
